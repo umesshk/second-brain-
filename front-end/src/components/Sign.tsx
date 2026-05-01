@@ -1,8 +1,7 @@
-import axios from "axios";
-import { BACKEND_URL } from "../config";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-
+import { isAxiosError } from "axios";
+import * as authApi from "../api/auth";
 
 export default function Sign({ text }: { text?: string }) {
   const [name, setName] = useState("");
@@ -12,27 +11,14 @@ export default function Sign({ text }: { text?: string }) {
   const [loader, setLoader] = useState(false);
   const navigate = useNavigate();
 
-  
-
   const handleLogin = async () => {
     try {
       setLoader(true);
-      const response = await axios.post(
-        `${BACKEND_URL}user/api/v1/signin`,
-        {
-          email,
-          password,
-        },
-        { withCredentials: true }
-      );
-      if (response.status === 200) {
-        localStorage.setItem("user",JSON.stringify(response.data.existingUser));
-        navigate("/");
-      } else {
-        setError("Invalid credentials. Please try again.");
-      }
-    } catch (error: any) {
-      if (error.response && error.response.status === 401) {
+      const user = await authApi.signin({ email, password });
+      localStorage.setItem("user", JSON.stringify(user));
+      navigate("/");
+    } catch (err: unknown) {
+      if (isAxiosError(err) && err.response?.status === 401) {
         setError("Incorrect credentials. Please check your email or password.");
       } else {
         setError("An error occurred during login. Please try again later.");
@@ -44,25 +30,18 @@ export default function Sign({ text }: { text?: string }) {
 
   const handleRegister = async () => {
     try {
-      const response = await axios.post(
-        `${BACKEND_URL}user/api/v1/signup`,
-        {
-          name,
-          email,
-          password,
-        },
-        { withCredentials: true }
-      );
-      if (response.status === 200) {
-        localStorage.setItem("user",JSON.stringify(response.data.user));
-        navigate("/");
-      }
-    } catch (error: any) {
-      if (error.response && error.response.status === 409) {
+      setLoader(true);
+      const user = await authApi.signup({ name, email, password });
+      localStorage.setItem("user", JSON.stringify(user));
+      navigate("/");
+    } catch (err: unknown) {
+      if (isAxiosError(err) && err.response?.status === 409) {
         setError("This email is already associated with an account.");
       } else {
         setError("An error occurred during registration. Please try again.");
       }
+    } finally {
+      setLoader(false);
     }
   };
 
@@ -72,27 +51,24 @@ export default function Sign({ text }: { text?: string }) {
 
   return (
     <div className="">
-      <h1 className="md:text-7xl sm:text-5xl mt-16 text-4xl text-center p-3 font-[Oswald] uppercase">
+      <h1 className="mt-16 p-3 text-center text-4xl font-[Oswald] uppercase sm:text-5xl md:text-7xl">
         {text ? "Welcome Back" : "Welcome to Second Brain"}
       </h1>
 
-      <div className="w-full mt-4 flex flex-col justify-center items-center">
+      <div className="mt-4 flex w-full flex-col items-center justify-center">
         {error && (
-          <div className="flex items-center justify-between rounded-xl py-2 mb-5 px-3 border-2 bg-red-400 border-red-900">
-            <span className="text-red-700 font-semibold text-xl tracking-wide flex items-center gap-2">
+          <div className="mb-5 flex items-center justify-between rounded-xl border-2 border-red-900 bg-red-400 px-3 py-2">
+            <span className="flex items-center gap-2 text-xl font-semibold tracking-wide text-red-700">
               {error}
             </span>
-            <button
-              className="text-red-800 font-semibold px-2"
-              onClick={handleClose}
-            >
+            <button className="px-2 font-semibold text-red-800" type="button" onClick={handleClose}>
               ✕
             </button>
           </div>
         )}
 
-        <div className="flex flex-col p-5 gap-3 border shadow-xl py-10 w-[450px] rounded-lg">
-          <h1 className="text-3xl text-purple-700 font-bold text-center">
+        <div className="flex w-[450px] max-w-[95vw] flex-col gap-3 rounded-lg border p-5 py-10 shadow-xl">
+          <h1 className="text-center text-3xl font-bold text-purple-700">
             {text ? "Log in to your Account " : "Create New Account"}
           </h1>
 
@@ -108,7 +84,7 @@ export default function Sign({ text }: { text?: string }) {
                 }}
                 value={name}
                 id="name"
-                className="focus:outline-purple-400 py-2 px-4 rounded-lg  border-zinc-600"
+                className="rounded-lg border-zinc-600 px-4 py-2 focus:outline-purple-400"
                 type="text"
                 placeholder="Enter Your Name"
               />
@@ -125,7 +101,7 @@ export default function Sign({ text }: { text?: string }) {
               setError("");
             }}
             value={email}
-            className="focus:outline-purple-400 py-2 px-4 rounded-lg  border-zinc-600"
+            className="rounded-lg border-zinc-600 px-4 py-2 focus:outline-purple-400"
             type="email"
             placeholder="Enter Your email"
           />
@@ -140,24 +116,25 @@ export default function Sign({ text }: { text?: string }) {
               setError("");
             }}
             value={password}
-            className="focus:outline-purple-400 py-2 px-4 rounded-lg  border-zinc-600"
+            className="rounded-lg border-zinc-600 px-4 py-2 focus:outline-purple-400"
             type="password"
             placeholder="Enter Your Password"
           />
 
           <button
             disabled={loader}
-            onClick={text ? handleLogin : handleRegister}
-            className={`text-white font-bold hover:text-white bg-purple-500 rounded-full px-7 py-3 sm:text-xl ${
-              loader && "opacity-50"
+            type="button"
+            onClick={() => void (text ? handleLogin() : handleRegister())}
+            className={`rounded-full bg-purple-500 px-7 py-3 font-bold text-white hover:text-white sm:text-xl ${
+              loader ? "opacity-50" : ""
             }`}
           >
             {loader ? <span>Loading...</span> : <span>{!text ? "Create Account" : "Log In"}</span>}
           </button>
 
-          <p className="text-center ">
+          <p className="text-center">
             {text ? "" : "Already Have an Account?"}{" "}
-            <a className="underline text-purple-400" href={`${!text ? "/login" : "/register"}`}>
+            <a className="text-purple-400 underline" href={!text ? "/login" : "/register"}>
               {text ? "Create New Account" : "Sign in"}
             </a>
           </p>
