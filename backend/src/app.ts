@@ -1,8 +1,11 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import { FRONTEND_ORIGIN } from "./config/env";
+import compression from "compression";
+import helmet from "helmet";
+import { FRONTEND_ORIGIN, TRUST_PROXY } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
+import { apiRateLimiter, authRateLimiter } from "./middleware/rateLimit";
 import userRoutes from "./routes/userRoutes";
 import noteRoutes from "./routes/noteRoutes";
 import tagRoutes from "./routes/tagRoutes";
@@ -11,6 +14,12 @@ import publicRoutes from "./routes/publicRoutes";
 
 export function createApp() {
   const app = express();
+  if (TRUST_PROXY) {
+    app.set("trust proxy", 1);
+  }
+  app.disable("x-powered-by");
+  app.use(helmet());
+  app.use(compression());
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
   app.use(
@@ -25,7 +34,8 @@ export function createApp() {
     res.json({ ok: true });
   });
 
-  app.use("/user", userRoutes);
+  app.use("/user", authRateLimiter, userRoutes);
+  app.use("/api/v1", apiRateLimiter);
   app.use("/api/v1", noteRoutes);
   app.use("/api/v1", tagRoutes);
   app.use("/api/v1", shareRoutes);
